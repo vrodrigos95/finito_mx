@@ -38,7 +38,7 @@ export const DEFAULT_SOURCES = [
   { name: 'Otro', color: '#3A3F4A', hint: 'Lo demás' },
 ];
 
-export const DATA_VERSION = 2;
+export const DATA_VERSION = 3;
 
 // Tipos: list (fechas exactas), monthly (día del mes), semimonthly (15 y fin de mes)
 export const SEED_SCHEDULES = [
@@ -121,7 +121,7 @@ export function makeSeed() {
     schedules: SEED_SCHEDULES.map((s) => ({ ...s })),
     overrides: {},
     incomes: NOTION_INCOMES.map(([date, source, amount]) => ({ id: uid('n'), date, source, amount, from: 'notion' })),
-    expenses: NOTION_EXPENSES.map(([date, category, amount]) => ({ id: uid('e'), date, category, amount, from: 'notion' })),
+    expenses: NOTION_EXPENSES.map(([date, category, amount, note]) => ({ id: uid('e'), date, category, amount, note, from: 'notion' })),
     abonos: [],
     weekMeta: {},
     envelopes: SEED_ENVELOPES.map((e) => ({ ...e })),

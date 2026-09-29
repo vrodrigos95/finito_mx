@@ -55,6 +55,7 @@ export default function Home({ go }) {
           </div>
           <div className="divider" />
           <div style={{ color: w.left < 0 ? 'var(--coral)' : 'var(--text)' }}>{msg}</div>
+          <button className="btn ghost" style={{ paddingLeft: 0, height: 36, marginTop: 6 }} onClick={() => go('movimientos')}>Ver mis gastos <Icon name="next" size={16} /></button>
         </div>
 
         {/* Cuánto separar */}

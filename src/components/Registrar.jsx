@@ -21,11 +21,11 @@ export default function Registrar({ onClose, initialType = 'gasto' }) {
 
   useEffect(() => () => stopRef.current?.(), []);
 
-  const save = (category, amt, t = type) => {
+  const save = (category, amt, t = type, note = '') => {
     const value = amt || 0;
     if (!value) { notify('Escribe o di un monto primero'); return; }
     const id = Math.random().toString(36).slice(2, 10);
-    const item = t === 'gasto' ? { id, date, category, amount: value } : { id, date, source: category, amount: value };
+    const item = t === 'gasto' ? { id, date, category, amount: value, note } : { id, date, source: category, amount: value, note };
     dispatch({ type: t === 'gasto' ? 'addExpense' : 'addIncome', item });
     // La etiqueta aprende el último monto usado
     dispatch({ type: 'updateTag', kind: t, name: category, patch: { amount: value } });
@@ -49,7 +49,8 @@ export default function Registrar({ onClose, initialType = 'gasto' }) {
     const r = parsePhrase(phrase, { expenseTags: state.expenseTags, incomeTags: state.incomeTags });
     if (r.amount) {
       setType(r.type);
-      save(r.category, r.amount, r.type);
+      const note = phrase.replace(/\$?\d[\d.,]*/g, ' ').replace(/\s+/g, ' ').trim();
+      save(r.category, r.amount, r.type, note ? note.charAt(0).toUpperCase() + note.slice(1) : '');
     } else {
       notify('No escuché el monto. Intenta: «gasolina 450»');
     }

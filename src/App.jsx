@@ -7,10 +7,11 @@ import Deudas, { DebtDetail } from './screens/Deudas.jsx';
 import Home from './screens/Home.jsx';
 import Ingresos from './screens/Ingresos.jsx';
 import Mas, { Ajustes } from './screens/Mas.jsx';
+import Movimientos from './screens/Movimientos.jsx';
 import Pagos from './screens/Pagos.jsx';
 import Stats from './screens/Stats.jsx';
 
-const TAB_OF = { inicio: 'inicio', pagos: 'pagos', deudas: 'deudas', deuda: 'deudas', mas: 'mas', ingresos: 'mas', apartados: 'mas', stats: 'mas', ajustes: 'mas' };
+const TAB_OF = { inicio: 'inicio', pagos: 'pagos', deudas: 'deudas', deuda: 'deudas', mas: 'mas', ingresos: 'mas', apartados: 'mas', stats: 'mas', ajustes: 'mas', movimientos: 'mas' };
 
 function Shell() {
   const [route, setRoute] = useState({ name: 'inicio' });
@@ -49,6 +50,7 @@ function Shell() {
   else if (r === 'apartados') screen = <Apartados back={back} />;
   else if (r === 'stats') screen = <Stats back={back} go={go} />;
   else if (r === 'ajustes') screen = <Ajustes back={back} />;
+  else if (r === 'movimientos') screen = <Movimientos back={back} />;
 
   const active = TAB_OF[r];
   const NavBtn = ({ id, icon, label }) => (

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { DATA_VERSION, DEFAULT_SOURCES, DIDI_SCHEDULE, makeSeed } from '../data/seed.js';
+import { NOTION_EXPENSES } from '../data/notion.js';
 import { expandPayments } from './calc.js';
 import { today } from './date.js';
 
@@ -28,6 +29,17 @@ function migrate(s) {
     s.debts = s.debts.map((d) => (d.id === 'didi' ? { ...d, status: 'activa', priority: 2, note: 'Quincenal. Lo pagas aparte de tus ganancias. Último pago el 15 mar.' } : d));
     s.schedules = s.schedules.map((x) => (x.id === 's-atr-hey' ? { ...x, note: 'Pago atrasado', items: [{ date: '2026-09-15', amount: 3000 }] } : x));
   }
+  if (v < 3) {
+    // Recupera las notas de Notion («Starbucks», «Oxxo»…) para poder buscarlas
+    const pool = NOTION_EXPENSES.map(([date, category, amount, note]) => ({ key: `${date}|${category}|${amount}`, note }));
+    s.expenses = s.expenses.map((e) => {
+      if (e.from !== 'notion' || e.note) return e;
+      const i = pool.findIndex((x) => x.key === `${e.date}|${e.category}|${e.amount}`);
+      if (i < 0) return e;
+      const [hit] = pool.splice(i, 1);
+      return { ...e, note: hit.note };
+    });
+  }
   s.dataVersion = DATA_VERSION;
   return s;
 }
@@ -45,6 +57,17 @@ function reducer(state, a) {
       const next = { ...state, expenses: [...state.expenses, { id: uid(), ...a.item }] };
       return a.item.category === 'Carro' ? carroEnvelope(next, -a.item.amount) : next;
     }
+    case 'updateExpense': {
+      const old = state.expenses.find((x) => x.id === a.id);
+      if (!old) return state;
+      const upd = { ...old, ...a.patch };
+      let next = { ...state, expenses: state.expenses.map((x) => (x.id === a.id ? upd : x)) };
+      if (old.category === 'Carro') next = carroEnvelope(next, old.amount);
+      if (upd.category === 'Carro') next = carroEnvelope(next, -upd.amount);
+      return next;
+    }
+    case 'updateIncome':
+      return { ...state, incomes: state.incomes.map((x) => (x.id === a.id ? { ...x, ...a.patch } : x)) };
     case 'addIncome':
       return { ...state, incomes: [...state.incomes, { id: uid(), ...a.item }] };
     case 'removeExpense': {
