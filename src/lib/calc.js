@@ -1,5 +1,6 @@
 import { addDays, addMonths, dateForDay, diffDays, fromISO, lastDayOfMonth, monthKey, today, weekEnd, weekStart } from './date.js';
 import { sum } from './money.js';
+import { DEFAULT_SOURCES } from '../data/seed.js';
 
 // ---------- Pagos programados ----------
 
@@ -125,7 +126,7 @@ export function projectDebts(state, payments, { extra = null } = {}) {
   const snowYm = state.settings.snowballStart;
   const B = state.settings.debtBudgetMonthly;
   const debts = state.debts
-    .filter((d) => d.balance > 0.5)
+    .filter((d) => d.balance > 1.5)
     .map((d) => ({ ...d, bal: d.balance - (extra && extra.id === d.id ? extra.amount : 0), interest: 0 }));
   const sched = {};
   for (const p of payments) {
@@ -139,10 +140,10 @@ export function projectDebts(state, payments, { extra = null } = {}) {
 
   const payoff = {};
   const series = [];
-  for (const d of debts) if (d.bal <= 0.5) payoff[d.id] = startYm;
+  for (const d of debts) if (d.bal <= 1.5) payoff[d.id] = startYm;
   let ym = startYm;
   for (let i = 0; i < 180; i++) {
-    const alive = debts.filter((d) => d.bal > 0.5);
+    const alive = debts.filter((d) => d.bal > 1.5);
     series.push({ ym, total: sum(alive, (d) => d.bal) });
     if (!alive.length) break;
     const snow = ym >= snowYm;
@@ -170,7 +171,7 @@ export function projectDebts(state, payments, { extra = null } = {}) {
       pool -= pay;
     }
     if (snow && pool > 0) {
-      const bySize = debts.filter((d) => d.bal > 0.5).sort((a, b) => a.bal - b.bal);
+      const bySize = debts.filter((d) => d.bal > 1.5).sort((a, b) => a.bal - b.bal);
       for (const d of bySize) {
         if (pool <= 0) break;
         const pay = Math.min(d.bal, pool);
@@ -178,7 +179,7 @@ export function projectDebts(state, payments, { extra = null } = {}) {
         pool -= pay;
       }
     }
-    for (const d of debts) if (d.bal <= 0.5 && !payoff[d.id]) payoff[d.id] = ym;
+    for (const d of debts) if (d.bal <= 1.5 && !payoff[d.id]) payoff[d.id] = ym;
     ym = addMonths(ym, 1);
   }
   const allPaid = debts.every((d) => payoff[d.id]);
@@ -195,12 +196,60 @@ export function pendingCount(debt, payments) {
 
 // ---------- Ingresos ----------
 
-export const SOURCES = ['Uber', 'Didi', 'P5', 'Asesorías', 'Otro'];
+const FALLBACK_COLORS = ['#C8F169', '#A89CFF', '#7FD4E6', '#FF8B78', '#F3C969', '#6B717C'];
+export const sourceList = (state) => state.incomeSources || DEFAULT_SOURCES;
+export const sourceColor = (state, name) => {
+  const list = sourceList(state);
+  const s = list.find((x) => x.name === name);
+  return s ? s.color : '#3A3F4A';
+};
+export const nextSourceColor = (state) => {
+  const used = new Set(sourceList(state).map((s) => s.color));
+  return FALLBACK_COLORS.find((c) => !used.has(c)) || FALLBACK_COLORS[sourceList(state).length % FALLBACK_COLORS.length];
+};
+
+// Nombres a mostrar: los tipos activos más cualquier tipo viejo que tenga registros en el periodo
+export function sourceNames(state, items = []) {
+  const names = sourceList(state).map((s) => s.name);
+  for (const i of items) if (!names.includes(i.source)) names.push(i.source);
+  return names;
+}
+
+function incomeRange(state, from, to) {
+  const items = state.incomes.filter((i) => i.date >= from && i.date <= to);
+  const names = sourceNames(state, items);
+  const bySource = Object.fromEntries(names.map((s) => [s, 0]));
+  for (const i of items) bySource[i.source] = (bySource[i.source] || 0) + i.amount;
+  return { items, names, bySource, total: sum(items, (i) => i.amount) };
+}
 
 export function weekIncome(state, ws) {
   const we = addDays(ws, 6);
-  const items = state.incomes.filter((i) => i.date >= ws && i.date <= we);
-  const bySource = Object.fromEntries(SOURCES.map((s) => [s, 0]));
-  for (const i of items) bySource[i.source] = (bySource[i.source] || 0) + i.amount;
-  return { ws, we, items, bySource, total: sum(items, (i) => i.amount) };
+  return { ws, we, ...incomeRange(state, ws, we) };
+}
+
+export function monthIncome(state, ym) {
+  const [y, m] = ym.split('-').map(Number);
+  const from = `${ym}-01`;
+  const to = `${ym}-${String(lastDayOfMonth(y, m - 1)).padStart(2, '0')}`;
+  return { ym, from, to, ...incomeRange(state, from, to) };
+}
+
+// Gastos del mes: fijos (programados) contra variables (registrados)
+export function monthOutflows(state, payments, ym) {
+  const inMonth = payments.filter((p) => monthKey(p.date) === ym);
+  const fijos = inMonth.filter((p) => p.kind === 'fijo');
+  const deudas = inMonth.filter((p) => p.kind === 'deuda');
+  const tanda = inMonth.filter((p) => p.kind === 'tanda');
+  const variables = state.expenses.filter((e) => monthKey(e.date) === ym);
+  const byCat = {};
+  for (const e of variables) byCat[e.category] = (byCat[e.category] || 0) + e.amount;
+  return {
+    fijos, deudas, tanda, variables,
+    fijosTotal: sum(fijos, (p) => p.amount),
+    deudasTotal: sum(deudas, (p) => p.amount),
+    tandaTotal: sum(tanda, (p) => p.amount),
+    variablesTotal: sum(variables, (e) => e.amount),
+    byCat: Object.entries(byCat).sort((a, b) => b[1] - a[1]),
+  };
 }

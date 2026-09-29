@@ -1,16 +1,16 @@
 import { useMemo, useState } from 'react';
 import { Empty, Header } from '../components/ui.jsx';
-import { SOURCES, projectDebts, weekIncome } from '../lib/calc.js';
+import { monthOutflows, projectDebts, sourceColor, sourceNames, weekIncome } from '../lib/calc.js';
 import { addDays, addMonths, fmtDayMonth, fmtMonthLong, fmtMonthYear, monthKey, today, weekStart } from '../lib/date.js';
 import { money, moneyK, sum } from '../lib/money.js';
 import { useStore } from '../lib/store.jsx';
-import { SOURCE_COLOR } from './Ingresos.jsx';
 
 export default function Stats({ back, go }) {
   const { state, payments } = useStore();
   const ws0 = weekStart(today());
   const weeks = useMemo(() => Array.from({ length: 8 }, (_, i) => weekIncome(state, addDays(ws0, -7 * (7 - i)))), [state, ws0]);
-  const bySrc = Object.fromEntries(SOURCES.map((s) => [s, sum(weeks, (w) => w.bySource[s])]));
+  const allNames = sourceNames(state, weeks.flatMap((w) => w.items));
+  const bySrc = Object.fromEntries(allNames.map((s) => [s, sum(weeks, (w) => w.bySource[s] || 0)]));
   const maxW = Math.max(1, ...weeks.map((w) => w.total));
   const closedWeeks = weeks.slice(0, 7).filter((w) => w.total > 0);
   const avgW = closedWeeks.length ? sum(closedWeeks, (w) => w.total) / closedWeeks.length : 0;
@@ -24,10 +24,11 @@ export default function Stats({ back, go }) {
   }, [state.expenses, ym]);
   const catMax = cats[0]?.[1] || 1;
 
+  const out = useMemo(() => monthOutflows(state, payments, ym), [state, payments, ym]);
   const proj = useMemo(() => projectDebts(state, payments), [state, payments]);
   const withHours = Object.entries(state.weekMeta).filter(([, m]) => m.horas > 0);
   const perHour = withHours.length
-    ? sum(withHours, ([ws]) => { const w = weekIncome(state, ws); return w.bySource.Uber + w.bySource.Didi; }) / sum(withHours, ([, m]) => m.horas)
+    ? sum(withHours, ([ws]) => { const w = weekIncome(state, ws); return (w.bySource.Uber || 0) + (w.bySource.Didi || 0); }) / sum(withHours, ([, m]) => m.horas)
     : null;
 
   if (!state.incomes.length && !state.expenses.length) {
@@ -45,8 +46,8 @@ export default function Stats({ back, go }) {
             <div key={w.ws} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
               <span className="faint" style={{ fontSize: 10, marginBottom: 4 }}>{w.total ? moneyK(w.total) : ''}</span>
               <div className="grow-y" style={{ width: '100%', height: `${(w.total / maxW) * 130}px`, display: 'flex', flexDirection: 'column-reverse', gap: 2, animationDelay: `${i * 40}ms`, opacity: w.ws === ws0 ? 0.55 : 1 }}>
-                {SOURCES.filter((s) => w.bySource[s] > 0).map((s) => (
-                  <i key={s} style={{ flex: w.bySource[s], background: SOURCE_COLOR[s], borderRadius: 4, minHeight: 2 }} title={`${s}: ${money(w.bySource[s])}`} />
+                {w.names.filter((s) => w.bySource[s] > 0).map((s) => (
+                  <i key={s} style={{ flex: w.bySource[s], background: sourceColor(state, s), borderRadius: 4, minHeight: 2 }} title={`${s}: ${money(w.bySource[s])}`} />
                 ))}
               </div>
             </div>
@@ -56,9 +57,9 @@ export default function Stats({ back, go }) {
           {weeks.map((w) => <span key={w.ws} className="faint" style={{ fontSize: 10, textAlign: 'center' }}>{fmtDayMonth(w.ws)}</span>)}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', marginTop: 14 }}>
-          {SOURCES.filter((s) => bySrc[s] > 0).map((s) => (
+          {allNames.filter((s) => bySrc[s] > 0).map((s) => (
             <div key={s} className="between small">
-              <span className="row" style={{ gap: 6 }}><i style={{ width: 8, height: 8, borderRadius: 2, background: SOURCE_COLOR[s] }} /><span className="muted">{s}</span></span>
+              <span className="row" style={{ gap: 6 }}><i style={{ width: 8, height: 8, borderRadius: 2, background: sourceColor(state, s) }} /><span className="muted">{s}</span></span>
               <span className="num">{money(bySrc[s])}</span>
             </div>
           ))}
@@ -79,6 +80,8 @@ export default function Stats({ back, go }) {
           </div>
         ))}
       </div>
+
+      <FixedVsVariable out={out} ym={ym} />
 
       <div className="card block">
         <div className="h3">Proyección de tu deuda</div>
@@ -109,6 +112,46 @@ function Projection({ series }) {
       <div className="between faint xs" style={{ marginTop: 4 }}>
         {ticks.map((i) => <span key={i}>{fmtMonthYear(series[i].ym)}{i === 0 ? ` · ${moneyK(series[0].total)}` : ''}</span>)}
       </div>
+    </div>
+  );
+}
+
+const PARTS = [
+  ['fijosTotal', 'Fijos', 'Servicios y suscripciones', 'var(--cyan)'],
+  ['deudasTotal', 'Pagos de deudas', 'Lo programado del mes', 'var(--coral)'],
+  ['tandaTotal', 'Tanda', 'Aportaciones', 'var(--violet)'],
+  ['variablesTotal', 'Variables', 'Lo que registras día a día', 'var(--lime)'],
+];
+
+function FixedVsVariable({ out, ym }) {
+  const total = PARTS.reduce((s, [k]) => s + out[k], 0);
+  const fixedAll = out.fijosTotal + out.deudasTotal + out.tandaTotal;
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="card block">
+      <div className="between"><span className="h3">Gastos fijos y variables</span><span className="num">{money(total)}</span></div>
+      <div className="faint small" style={{ marginTop: 2 }}>{fmtMonthLong(ym)} · fijos {total ? Math.round((fixedAll / total) * 100) : 0}% · variables {total ? Math.round((out.variablesTotal / total) * 100) : 0}%</div>
+      <div style={{ display: 'flex', gap: 3, height: 12, borderRadius: 99, overflow: 'hidden', background: 'var(--line)', margin: '14px 0 6px' }}>
+        {PARTS.filter(([k]) => out[k] > 0).map(([k, , , c]) => <i key={k} style={{ flex: out[k], background: c, transition: 'flex .25s var(--ease)' }} />)}
+      </div>
+      {PARTS.map(([k, label, hint, c]) => (
+        <div key={k} className="between" style={{ padding: '10px 0', borderBottom: '1px solid var(--line)' }}>
+          <span className="row" style={{ gap: 10 }}><i style={{ width: 8, height: 8, borderRadius: 2, background: c }} /><span><span style={{ fontWeight: 600 }}>{label}</span><br /><span className="faint xs">{hint}</span></span></span>
+          <span className="num">{money(out[k])}</span>
+        </div>
+      ))}
+      <button className="btn ghost" style={{ paddingLeft: 0, marginTop: 6 }} onClick={() => setOpen(!open)}>{open ? 'Ocultar detalle de fijos' : 'Ver detalle de fijos'}</button>
+      {open && (
+        <div className="small">
+          {[...out.fijos, ...out.tanda].map((p) => (
+            <div key={p.key} className="between" style={{ padding: '6px 0' }}>
+              <span className={p.paid ? 'faint' : ''}>{p.name} · {fmtDayMonth(p.date)}{p.paid ? ' · pagado' : ''}</span><span className="num">{money(p.amount)}</span>
+            </div>
+          ))}
+          {!out.fijos.length && !out.tanda.length && <p className="faint">Sin fijos este mes.</p>}
+        </div>
+      )}
+      <p className="faint xs" style={{ marginTop: 10 }}>Fijos, deudas y tanda salen de tu calendario de pagos; variables, de lo que registras con el +.</p>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { makeSeed } from '../data/seed.js';
+import { DATA_VERSION, DEFAULT_SOURCES, DIDI_SCHEDULE, makeSeed } from '../data/seed.js';
 import { expandPayments } from './calc.js';
 import { today } from './date.js';
 
@@ -9,7 +9,7 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return migrate(JSON.parse(raw));
   } catch { /* sin almacenamiento */ }
   return makeSeed();
 }
@@ -17,6 +17,19 @@ function load() {
 function adjustDebt(state, debtId, delta) {
   if (!debtId) return state.debts;
   return state.debts.map((d) => (d.id === debtId ? { ...d, balance: Math.max(0, Math.round((d.balance + delta) * 100) / 100) } : d));
+}
+
+// Actualiza datos ya guardados en el teléfono sin borrar lo registrado
+function migrate(s) {
+  const v = s.dataVersion || 1;
+  if (v < 2) {
+    s.incomeSources ??= DEFAULT_SOURCES.map((x) => ({ ...x }));
+    if (!s.schedules.some((x) => x.id === 's-didi')) s.schedules = [...s.schedules, { ...DIDI_SCHEDULE, items: DIDI_SCHEDULE.items.map((i) => ({ ...i })) }];
+    s.debts = s.debts.map((d) => (d.id === 'didi' ? { ...d, status: 'activa', priority: 2, note: 'Quincenal. Lo pagas aparte de tus ganancias. Último pago el 15 mar.' } : d));
+    s.schedules = s.schedules.map((x) => (x.id === 's-atr-hey' ? { ...x, note: 'Pago atrasado', items: [{ date: '2026-09-15', amount: 3000 }] } : x));
+  }
+  s.dataVersion = DATA_VERSION;
+  return s;
 }
 
 // Los gastos de «Carro» salen del sobre del carro
@@ -94,6 +107,21 @@ function reducer(state, a) {
       return { ...state, envelopes: [...state.envelopes, { id: uid(), saved: 0, weekly: 0, hint: '', ...a.envelope }] };
     case 'removeEnvelope':
       return { ...state, envelopes: state.envelopes.filter((e) => e.id !== a.id) };
+    case 'addSource': {
+      const list = state.incomeSources || DEFAULT_SOURCES;
+      if (list.some((x) => x.name.toLowerCase() === a.source.name.toLowerCase())) return state;
+      return {
+        ...state,
+        incomeSources: [...list, a.source],
+        incomeTags: state.incomeTags.some((t) => t.name === a.source.name) ? state.incomeTags : [...state.incomeTags, { name: a.source.name, amount: 500 }],
+      };
+    }
+    case 'removeSource':
+      return {
+        ...state,
+        incomeSources: (state.incomeSources || DEFAULT_SOURCES).filter((x) => x.name !== a.name),
+        incomeTags: state.incomeTags.filter((t) => t.name !== a.name),
+      };
     case 'settings':
       return { ...state, settings: { ...state.settings, ...a.patch } };
     case 'addTag': {

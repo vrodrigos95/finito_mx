@@ -20,10 +20,25 @@ export const SEED_DEBTS = [
   { id: 'azteca', name: 'Banco Azteca', priority: 3, status: 'pausa', balance: 8612, monthly: 550, rate: null, note: '' },
   { id: 'kubo1', name: 'Kubo Financiero I', priority: 3, status: 'pausa', balance: 11678, monthly: 2189, rate: null, note: 'Atrasado desde el 5 sep.' },
   { id: 'nu', name: 'Nu TDC', priority: 3, status: 'pausa', balance: 13170, monthly: 1200, rate: null, note: '' },
-  { id: 'didi', name: 'Didi Préstamos', priority: 3, status: 'pausa', balance: 23840, monthly: 3966, rate: null, note: 'Quincenal (15 y 29). Lo pagas aparte de tus ganancias.' },
+  { id: 'didi', name: 'Didi Préstamos', priority: 2, status: 'activa', balance: 23840, monthly: 3966, rate: null, note: 'Quincenal. Lo pagas aparte de tus ganancias. Último pago el 15 mar.' },
   { id: 'hey', name: 'Hey Banco', priority: 3, status: 'pausa', balance: 42409, monthly: 3000, rate: null, note: 'Atrasado desde el 15 sep. Pide el monto para liquidar.' },
   { id: 'aero', name: 'Santander Aeroméxico', priority: 3, status: 'pausa', balance: 44826, monthly: 3500, rate: null, note: '' },
 ];
+
+export const DIDI_SCHEDULE = { id: 's-didi', debtId: 'didi', name: 'Didi Préstamos', kind: 'deuda', type: 'list', items: list([
+  ['2026-09-29', 2027], ['2026-10-14', 1983], ['2026-10-29', 1983], ['2026-11-17', 1983], ['2026-11-30', 1983], ['2026-12-14', 1983],
+  ['2026-12-29', 1983], ['2027-01-14', 1983], ['2027-01-29', 1983], ['2027-02-15', 1983], ['2027-03-01', 1983], ['2027-03-15', 1982],
+]) };
+
+export const DEFAULT_SOURCES = [
+  { name: 'Uber', color: '#C8F169', hint: 'Plataforma' },
+  { name: 'Didi', color: '#A89CFF', hint: 'Plataforma' },
+  { name: 'P5', color: '#7FD4E6', hint: 'Quincena de la prepa' },
+  { name: 'Asesorías', color: '#6B717C', hint: 'Clases particulares' },
+  { name: 'Otro', color: '#3A3F4A', hint: 'Lo demás' },
+];
+
+export const DATA_VERSION = 2;
 
 // Tipos: list (fechas exactas), monthly (día del mes), semimonthly (15 y fin de mes)
 export const SEED_SCHEDULES = [
@@ -43,7 +58,8 @@ export const SEED_SCHEDULES = [
   { id: 's-seguro', debtId: 'seguro', name: 'Seguro carro', kind: 'deuda', type: 'monthly', day: 25, amount: 3000, start: '2026-10-25', count: 5 },
   // Atrasados de deudas en pausa: el plan los regulariza en diciembre
   { id: 's-atr-kubo1', debtId: 'kubo1', name: 'Kubo I · atrasado', kind: 'deuda', type: 'list', note: 'Venció el 5 sep · plan: diciembre', items: list([['2026-12-01', 2189]]) },
-  { id: 's-atr-hey', debtId: 'hey', name: 'Hey Banco · atrasado', kind: 'deuda', type: 'list', note: 'Venció el 15 sep · plan: diciembre', items: list([['2026-12-01', 3000]]) },
+  { id: 's-atr-hey', debtId: 'hey', name: 'Hey Banco · atrasado', kind: 'deuda', type: 'list', note: 'Pago atrasado', items: list([['2026-09-15', 3000]]) },
+  DIDI_SCHEDULE,
   { id: 's-atr-kubo2', debtId: 'kubo2', name: 'Kubo II · atrasado', kind: 'deuda', type: 'list', note: 'Venció el 27 sep · plan: diciembre', items: list([['2026-12-01', 2386]]) },
   { id: 's-plata', debtId: 'plata', name: 'Plata Card', kind: 'deuda', type: 'list', note: 'Plan: liquidarla en diciembre', items: list([['2026-12-19', 5461]]) },
   // Tanda: $3,000 cada 15 y fin de mes
@@ -97,6 +113,8 @@ const uid = (p) => `${p}${(n++).toString(36)}`;
 export function makeSeed() {
   return {
     version: 1,
+    dataVersion: DATA_VERSION,
+    incomeSources: DEFAULT_SOURCES.map((s) => ({ ...s })),
     createdAt: new Date().toISOString(),
     settings: { ...SEED_SETTINGS },
     debts: SEED_DEBTS.map((d) => ({ ...d, startBalance: d.balance })),
