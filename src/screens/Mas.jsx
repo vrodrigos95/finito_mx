@@ -79,7 +79,7 @@ export function Ajustes({ back }) {
           <div className="grow" style={{ fontWeight: 600 }}>Reiniciar datos</div>
         </button>
       </div>
-      <p className="faint xs block" style={{ textAlign: 'center' }}>Finito · v0.3</p>
+      <p className="faint xs block" style={{ textAlign: 'center' }}>Finito · v0.4</p>
     </div>
   );
 }

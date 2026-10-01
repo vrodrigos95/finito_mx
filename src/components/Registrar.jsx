@@ -13,6 +13,7 @@ export default function Registrar({ onClose, initialType = 'gasto' }) {
   const [listening, setListening] = useState(false);
   const [heard, setHeard] = useState('');
   const [text, setText] = useState('');
+  const [desc, setDesc] = useState('');
   const [adding, setAdding] = useState(false);
   const [newTag, setNewTag] = useState('');
   const stopRef = useRef(null);
@@ -34,11 +35,12 @@ export default function Registrar({ onClose, initialType = 'gasto' }) {
     });
     setRaw('');
     setText('');
+    setDesc('');
     setHeard('');
     setTimeout(onClose, 180);
   };
 
-  const tapTag = (tag) => save(tag.name, amount || tag.amount);
+  const tapTag = (tag) => save(tag.name, amount || tag.amount, type, desc.trim());
 
   const press = (k) => {
     if (k === 'del') return setRaw((r) => r.slice(0, -1));
@@ -50,7 +52,7 @@ export default function Registrar({ onClose, initialType = 'gasto' }) {
     if (r.amount) {
       setType(r.type);
       const note = phrase.replace(/\$?\d[\d.,]*/g, ' ').replace(/\s+/g, ' ').trim();
-      save(r.category, r.amount, r.type, note ? note.charAt(0).toUpperCase() + note.slice(1) : '');
+      save(r.category, r.amount, r.type, desc.trim() || (note ? note.charAt(0).toUpperCase() + note.slice(1) : ''));
     } else {
       notify('No escuché el monto. Intenta: «gasolina 450»');
     }
@@ -91,12 +93,24 @@ export default function Registrar({ onClose, initialType = 'gasto' }) {
         <div className="grow">
           <div className="muted small">{type === 'gasto' ? '¿Cuánto gastaste?' : '¿Cuánto entró?'}</div>
           <div className="num" style={{ fontSize: 48, lineHeight: 1.1, color: amount ? 'var(--text)' : 'var(--text3)' }}>{money(amount)}</div>
-          <div className="faint xs" style={{ minHeight: 16 }}>{listening ? (heard || 'Te escucho…') : 'Toca una etiqueta para guardar lo de siempre.'}</div>
+          <div className="faint xs" style={{ minHeight: 16 }}>{listening ? (heard || 'Te escucho…') : 'Escribe el monto y la descripción, y toca la etiqueta.'}</div>
         </div>
         <button className={`mic ${listening ? 'on' : ''}`} onClick={mic} aria-label="Dictar">
           <Icon name={listening ? 'x' : 'mic'} size={26} />
         </button>
       </div>
+
+      <input
+        className="field-desc"
+        style={{ width: '100%', height: 46, padding: '0 14px', borderRadius: 14, background: 'var(--card2)', border: '1px solid var(--line)', marginTop: 10 }}
+        placeholder={type === 'gasto' ? 'Descripción (opcional): Oxxo, Starbucks…' : 'Descripción (opcional): semana 1, quincena…'}
+        value={desc}
+        onChange={(e) => setDesc(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+        enterKeyHint="done"
+        aria-label="Descripción"
+        autoCapitalize="sentences"
+      />
 
       <div className="tags" style={{ margin: '12px 0' }}>
         {tags.map((t) => (
