@@ -24,6 +24,8 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html, body { background: var(--bg); }
+/* Sin zoom: ni doble toque ni texto que crezca solo */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   color: var(--text);
   font: 400 15px/1.45 'DM Sans', system-ui, -apple-system, sans-serif;
