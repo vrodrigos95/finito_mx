@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import Registrar from './components/Registrar.jsx';
 import { Icon, Toast } from './components/ui.jsx';
 import { StoreProvider } from './lib/store.jsx';
+import UpdateBanner from './components/UpdateBanner.jsx';
+import Ahorros from './screens/Ahorros.jsx';
 import Apartados from './screens/Apartados.jsx';
 import Deudas, { DebtDetail } from './screens/Deudas.jsx';
 import Home from './screens/Home.jsx';
@@ -11,7 +13,7 @@ import Movimientos from './screens/Movimientos.jsx';
 import Pagos from './screens/Pagos.jsx';
 import Stats from './screens/Stats.jsx';
 
-const TAB_OF = { inicio: 'inicio', pagos: 'pagos', deudas: 'deudas', deuda: 'deudas', mas: 'mas', ingresos: 'mas', apartados: 'mas', stats: 'mas', ajustes: 'mas', movimientos: 'mas' };
+const TAB_OF = { inicio: 'inicio', pagos: 'pagos', deudas: 'deudas', deuda: 'deudas', mas: 'mas', ingresos: 'mas', apartados: 'mas', ahorros: 'mas', stats: 'mas', ajustes: 'mas', movimientos: 'mas' };
 
 function Shell() {
   const [route, setRoute] = useState({ name: 'inicio' });
@@ -48,6 +50,7 @@ function Shell() {
   else if (r === 'mas') screen = <Mas go={go} />;
   else if (r === 'ingresos') screen = <Ingresos back={back} />;
   else if (r === 'apartados') screen = <Apartados back={back} />;
+  else if (r === 'ahorros') screen = <Ahorros back={back} />;
   else if (r === 'stats') screen = <Stats back={back} go={go} />;
   else if (r === 'ajustes') screen = <Ajustes back={back} />;
   else if (r === 'movimientos') screen = <Movimientos back={back} />;
@@ -61,6 +64,7 @@ function Shell() {
 
   return (
     <div className="app">
+      <UpdateBanner />
       <div key={r + (route.id || '')}>{screen}</div>
       <nav className="nav" aria-label="Principal">
         <NavBtn id="inicio" icon="home" label="Inicio" />

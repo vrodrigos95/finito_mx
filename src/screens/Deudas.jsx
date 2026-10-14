@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Bar, Confetti, Empty, Header, Icon, Money, Sheet, useConfetti } from '../components/ui.jsx';
-import { debtTotals, pendingCount, projectDebts } from '../lib/calc.js';
-import { fmtMonthYear } from '../lib/date.js';
+import { debtTotals, FREQ_LABEL, FREQS, freqMonthly, pendingCount, planLastDate, projectDebts } from '../lib/calc.js';
+import { addDays, fmtShort, fmtMonthYear, today } from '../lib/date.js';
 import { clamp, money, pct } from '../lib/money.js';
 import { useStore } from '../lib/store.jsx';
 
@@ -131,6 +131,7 @@ export function DebtDetail({ id, back }) {
           <Stat label="Pagos restantes" value={pendingCount(d, payments)} />
           <Stat label="Libre en" value={before ? fmtMonthYear(before) : '—'} />
         </div>
+        {d.plan && <p className="small" style={{ marginTop: 14 }}><span className="lime" style={{ fontWeight: 600 }}>{FREQ_LABEL[d.plan.type]}</span> <span className="muted">· {money(d.plan.amount)} por pago</span></p>}
         {d.note && <p className="faint small" style={{ marginTop: 14 }}>{d.note}</p>}
         <button className="btn ghost" style={{ marginTop: 8, paddingLeft: 0 }} onClick={() => setEditing(true)}><Icon name="edit" size={16} /> Editar deuda</button>
       </div>
@@ -189,18 +190,38 @@ const Compare = ({ label, value, text, lime }) => (
 );
 
 export function DebtForm({ debt, onClose, onRemoved }) {
-  const { dispatch, notify } = useStore();
+  const { state, dispatch, payments, notify } = useStore();
   const [f, setF] = useState({
     name: debt?.name || '', balance: debt?.balance ?? '', monthly: debt?.monthly ?? '', rate: debt?.rate ?? '',
     priority: debt?.priority ?? 3, status: debt?.status || 'activa', note: debt?.note || '',
   });
+  const nextPay = debt ? payments.find((p) => p.debtId === debt.id && !p.paid && p.date >= today()) : null;
+  const hasCalendar = debt && state.schedules.some((s) => s.debtId === debt.id);
+  // freq: '' = dejar el calendario como está · 'ninguno' = quitar los pagos futuros
+  const [freq, setFreq] = useState(debt ? '' : 'mensual');
+  const [pl, setPl] = useState({
+    amount: debt?.plan?.amount ?? nextPay?.amount ?? '',
+    start: nextPay?.date && nextPay.date >= today() ? nextPay.date : addDays(today(), 1),
+    count: '',
+  });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const setP = (k) => (e) => setPl({ ...pl, [k]: e.target.value });
+  const balance = Number(f.balance) || 0;
+  const amt = Number(pl.amount) || 0;
+  const suggested = amt ? Math.max(1, Math.ceil(balance / amt)) : 0;
+  const plan = FREQ_LABEL[freq] && amt ? { type: freq, amount: amt, start: pl.start, count: Number(pl.count) || suggested } : null;
+  const last = planLastDate(plan);
+
   const save = () => {
-    const patch = { name: f.name.trim(), balance: Number(f.balance) || 0, monthly: Number(f.monthly) || 0, rate: f.rate === '' ? null : Number(f.rate), priority: Number(f.priority), status: f.status, note: f.note };
+    const patch = { name: f.name.trim(), balance, monthly: Number(f.monthly) || 0, rate: f.rate === '' ? null : Number(f.rate), priority: Number(f.priority), status: f.status, note: f.note };
     if (!patch.name) return notify('Ponle nombre');
-    if (debt) dispatch({ type: 'updateDebt', id: debt.id, patch });
-    else dispatch({ type: 'addDebt', debt: patch });
-    notify(debt ? 'Deuda actualizada' : 'Deuda agregada');
+    if (FREQ_LABEL[freq] && !plan) return notify('Pon cuánto pagas cada vez');
+    const id = debt?.id || Math.random().toString(36).slice(2, 10);
+    if (debt) dispatch({ type: 'updateDebt', id, patch });
+    else dispatch({ type: 'addDebt', id, debt: patch });
+    if (plan) dispatch({ type: 'setDebtPlan', debtId: id, plan });
+    else if (freq === 'ninguno') dispatch({ type: 'setDebtPlan', debtId: id, plan: null });
+    notify(plan ? `Listo: ${plan.count} pagos de ${money(plan.amount)} en tu calendario` : debt ? 'Deuda actualizada' : 'Deuda agregada');
     onClose();
   };
   return (
@@ -210,8 +231,36 @@ export function DebtForm({ debt, onClose, onRemoved }) {
         <label className="field"><span>Nombre</span><input value={f.name} onChange={set('name')} /></label>
         <div className="row">
           <label className="field grow"><span>Saldo actual</span><input inputMode="decimal" value={f.balance} onChange={set('balance')} /></label>
-          <label className="field grow"><span>Pago mensual</span><input inputMode="decimal" value={f.monthly} onChange={set('monthly')} /></label>
+          <label className="field grow"><span>Pago mensual</span><input inputMode="decimal" value={plan ? Math.round(freqMonthly(plan)) : f.monthly} onChange={set('monthly')} disabled={!!plan} /></label>
         </div>
+
+        <div className="card2" style={{ padding: 14 }}>
+          <label className="field"><span>¿Cada cuánto se paga?</span>
+            <select value={freq} onChange={(e) => setFreq(e.target.value)}>
+              {debt && <option value="">{hasCalendar ? (debt.plan ? `Sin cambios (${FREQ_LABEL[debt.plan.type].toLowerCase()})` : 'Sin cambios (calendario actual)') : 'Sin pagos programados'}</option>}
+              {FREQS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              {hasCalendar && <option value="ninguno">Ya no programar pagos</option>}
+            </select>
+          </label>
+          {FREQ_LABEL[freq] && (
+            <>
+              <div className="row" style={{ marginTop: 10 }}>
+                <label className="field grow"><span>Pagas cada vez</span><input inputMode="decimal" value={pl.amount} onChange={setP('amount')} placeholder="Ej. 1500" /></label>
+                <label className="field grow"><span>Próximo pago</span><input type="date" value={pl.start} onChange={(e) => e.target.value && setPl({ ...pl, start: e.target.value })} /></label>
+              </div>
+              <label className="field" style={{ marginTop: 10 }}><span>Número de pagos</span><input inputMode="numeric" value={pl.count} onChange={setP('count')} placeholder={suggested ? `${suggested} (lo que cubre el saldo)` : 'Se calcula con el saldo'} /></label>
+              {plan && (
+                <p className="small" style={{ marginTop: 10 }}>
+                  <span className="lime" style={{ fontWeight: 600 }}>{plan.count} pagos de {money(plan.amount)}</span>
+                  <span className="muted"> · ≈ {money(freqMonthly(plan))} al mes{last ? ` · último el ${fmtShort(last).toLowerCase()}` : ''}</span>
+                </p>
+              )}
+              {hasCalendar && <p className="faint xs" style={{ marginTop: 6 }}>Reemplaza los pagos futuros que ya tenía. Lo pagado y lo atrasado se queda.</p>}
+            </>
+          )}
+          {freq === 'ninguno' && <p className="faint xs" style={{ marginTop: 8 }}>Se quitan los pagos desde hoy. Lo atrasado se queda en Pagos.</p>}
+        </div>
+
         <div className="row">
           <label className="field grow"><span>Tasa anual % (opcional)</span><input inputMode="decimal" value={f.rate} onChange={set('rate')} placeholder="Ej. 60" /></label>
           <label className="field grow"><span>Prioridad</span>

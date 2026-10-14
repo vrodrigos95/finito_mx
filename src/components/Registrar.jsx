@@ -14,28 +14,32 @@ export default function Registrar({ onClose, initialType = 'gasto' }) {
   const [heard, setHeard] = useState('');
   const [text, setText] = useState('');
   const [desc, setDesc] = useState('');
+  const [place, setPlace] = useState('');
   const [adding, setAdding] = useState(false);
   const [newTag, setNewTag] = useState('');
   const stopRef = useRef(null);
   const amount = raw ? Number(raw) : 0;
   const tags = type === 'gasto' ? state.expenseTags : state.incomeTags;
+  // Lugares usados antes, del más reciente al más viejo, para sugerirlos
+  const places = [...new Set(state.expenses.filter((e) => e.place).sort((a, b) => (a.date < b.date ? 1 : -1)).map((e) => e.place))].slice(0, 30);
 
   useEffect(() => () => stopRef.current?.(), []);
 
-  const save = (category, amt, t = type, note = '') => {
+  const save = (category, amt, t = type, note = '', where = place.trim()) => {
     const value = amt || 0;
     if (!value) { notify('Escribe o di un monto primero'); return; }
     const id = Math.random().toString(36).slice(2, 10);
-    const item = t === 'gasto' ? { id, date, category, amount: value, note } : { id, date, source: category, amount: value, note };
+    const item = t === 'gasto' ? { id, date, category, amount: value, note, place: where } : { id, date, source: category, amount: value, note };
     dispatch({ type: t === 'gasto' ? 'addExpense' : 'addIncome', item });
     // La etiqueta aprende el último monto usado
     dispatch({ type: 'updateTag', kind: t, name: category, patch: { amount: value } });
-    notify(`${category} ${money(value)} ${t === 'gasto' ? 'guardado' : 'sumado'}`, () => {
+    notify(`${category} ${money(value)}${t === 'gasto' && where ? ` en ${where}` : ''} ${t === 'gasto' ? 'guardado' : 'sumado'}`, () => {
       dispatch({ type: t === 'gasto' ? 'removeExpense' : 'removeIncome', id });
     });
     setRaw('');
     setText('');
     setDesc('');
+    setPlace('');
     setHeard('');
     setTimeout(onClose, 180);
   };
@@ -51,8 +55,15 @@ export default function Registrar({ onClose, initialType = 'gasto' }) {
     const r = parsePhrase(phrase, { expenseTags: state.expenseTags, incomeTags: state.incomeTags });
     if (r.amount) {
       setType(r.type);
-      const note = phrase.replace(/\$?\d[\d.,]*/g, ' ').replace(/\s+/g, ' ').trim();
-      save(r.category, r.amount, r.type, desc.trim() || (note ? note.charAt(0).toUpperCase() + note.slice(1) : ''));
+      let note = phrase.replace(/\$?\d[\d.,]*/g, ' ').replace(/\s+/g, ' ').trim();
+      // «gasolina 450 en Pemex»: lo que va después de «en» es el lugar
+      let where = place.trim();
+      const m = note.match(/^(.*?)\s*\ben\s+(.+)$/i);
+      if (m && r.type === 'gasto') {
+        if (!where) where = m[2].charAt(0).toUpperCase() + m[2].slice(1);
+        note = m[1];
+      }
+      save(r.category, r.amount, r.type, desc.trim() || (note ? note.charAt(0).toUpperCase() + note.slice(1) : ''), where);
     } else {
       notify('No escuché el monto. Intenta: «gasolina 450»');
     }
@@ -103,7 +114,7 @@ export default function Registrar({ onClose, initialType = 'gasto' }) {
       <input
         className="field-desc"
         style={{ width: '100%', height: 46, padding: '0 14px', borderRadius: 14, background: 'var(--card2)', border: '1px solid var(--line)', marginTop: 10 }}
-        placeholder={type === 'gasto' ? 'Descripción (opcional): Oxxo, Starbucks…' : 'Descripción (opcional): semana 1, quincena…'}
+        placeholder={type === 'gasto' ? 'Descripción (opcional): café, tacos, aceite…' : 'Descripción (opcional): semana 1, quincena…'}
         value={desc}
         onChange={(e) => setDesc(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
@@ -111,6 +122,22 @@ export default function Registrar({ onClose, initialType = 'gasto' }) {
         aria-label="Descripción"
         autoCapitalize="sentences"
       />
+      {type === 'gasto' && (
+        <>
+          <input
+            style={{ width: '100%', height: 46, padding: '0 14px', borderRadius: 14, background: 'var(--card2)', border: '1px solid var(--line)', marginTop: 8 }}
+            placeholder="Lugar (opcional): Oxxo, Pemex, Costco…"
+            value={place}
+            onChange={(e) => setPlace(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            enterKeyHint="done"
+            aria-label="Lugar"
+            autoCapitalize="words"
+            list="lugares"
+          />
+          <datalist id="lugares">{places.map((p) => <option key={p} value={p} />)}</datalist>
+        </>
+      )}
 
       <div className="tags" style={{ margin: '12px 0' }}>
         {tags.map((t) => (
@@ -135,7 +162,7 @@ export default function Registrar({ onClose, initialType = 'gasto' }) {
           id="dictar"
           className="grow"
           style={{ height: 46, padding: '0 14px', borderRadius: 14, background: 'var(--card2)', border: '1px solid var(--line)' }}
-          placeholder="o escribe / dicta: gasolina 450"
+          placeholder="o escribe / dicta: gasolina 450 en Pemex"
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && text.trim() && applyPhrase(text)}

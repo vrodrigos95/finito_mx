@@ -48,7 +48,7 @@ export default function Movimientos({ back }) {
     const list = inPeriod.filter((x) => {
       if (cat !== 'Todas' && catOf(x) !== cat) return false;
       if (!nq) return true;
-      return norm(x.note).includes(nq) || norm(catOf(x)).includes(nq) || (num && String(Math.round(x.amount)).includes(num));
+      return norm(x.note).includes(nq) || norm(x.place).includes(nq) || norm(catOf(x)).includes(nq) || (num && String(Math.round(x.amount)).includes(num));
     });
     return list.sort((a, b) => (sort === 'monto' ? b.amount - a.amount : a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   }, [inPeriod, q, cat, sort, isGasto]); // eslint-disable-line
@@ -69,8 +69,8 @@ export default function Movimientos({ back }) {
     <button className="list-row" style={{ width: '100%', textAlign: 'left', padding: '12px 14px' }} onClick={() => setEdit(x)}>
       <i style={{ width: 8, height: 8, borderRadius: 99, background: color(catOf(x)), flex: 'none' }} />
       <div className="grow" style={{ minWidth: 0 }}>
-        <div style={{ fontWeight: 600 }} className="ellipsis">{x.note || catOf(x)}</div>
-        <div className="faint small">{catOf(x)}{sort === 'monto' ? ` · ${fmtShort(x.date)}` : ''}</div>
+        <div style={{ fontWeight: 600 }} className="ellipsis">{x.note || x.place || catOf(x)}</div>
+        <div className="faint small ellipsis">{catOf(x)}{x.place && x.note ? ` · ${x.place}` : ''}{sort === 'monto' ? ` · ${fmtShort(x.date)}` : ''}</div>
       </div>
       <div className="num" style={{ fontSize: 17, color: isGasto ? 'var(--text)' : 'var(--lime)' }}>{isGasto ? '' : '+'}{money(x.amount)}</div>
     </button>
@@ -85,7 +85,7 @@ export default function Movimientos({ back }) {
 
       <label className="row card2" style={{ marginTop: 14, height: 48, padding: '0 14px', gap: 10, border: '1px solid var(--line)' }}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ color: 'var(--text3)', flex: 'none' }} aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
-        <input className="grow" value={q} onChange={(e) => { setQ(e.target.value); setLimit(PAGE); }} placeholder={isGasto ? 'Buscar: oxxo, gasolina, 450…' : 'Buscar: uber, quincena…'} aria-label="Buscar" enterKeyHint="search" />
+        <input className="grow" value={q} onChange={(e) => { setQ(e.target.value); setLimit(PAGE); }} placeholder={isGasto ? 'Buscar: oxxo, pemex, gasolina, 450…' : 'Buscar: uber, quincena…'} aria-label="Buscar" enterKeyHint="search" />
         {q && <button onClick={() => setQ('')} aria-label="Borrar búsqueda" style={{ color: 'var(--text3)' }}><Icon name="x" size={18} /></button>}
       </label>
 
@@ -139,6 +139,7 @@ function EditMovimiento({ item, isGasto, onClose }) {
   const [cat, setCat] = useState(isGasto ? item.category : item.source);
   const [date, setDate] = useState(item.date);
   const [note, setNote] = useState(item.note || '');
+  const [place, setPlace] = useState(item.place || '');
   const options = isGasto
     ? [...new Set([...state.expenseTags.map((t) => t.name), 'Servicios', item.category])]
     : [...new Set([...sourceList(state).map((s) => s.name), item.source])];
@@ -146,7 +147,7 @@ function EditMovimiento({ item, isGasto, onClose }) {
   const save = () => {
     const a = Number(amount);
     if (!a) return notify('Pon un monto');
-    const patch = { amount: a, date, note: note.trim(), [isGasto ? 'category' : 'source']: cat };
+    const patch = { amount: a, date, note: note.trim(), [isGasto ? 'category' : 'source']: cat, ...(isGasto ? { place: place.trim() } : {}) };
     dispatch({ type: isGasto ? 'updateExpense' : 'updateIncome', id: item.id, patch });
     notify('Movimiento actualizado');
     onClose();
@@ -160,7 +161,8 @@ function EditMovimiento({ item, isGasto, onClose }) {
     <Sheet onClose={onClose}>
       <div className="h2" style={{ marginBottom: 16 }}>{isGasto ? 'Editar gasto' : 'Editar ingreso'}</div>
       <div className="stack">
-        <label className="field"><span>Descripción</span><input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ej. Oxxo, Starbucks…" /></label>
+        <label className="field"><span>Descripción</span><input value={note} onChange={(e) => setNote(e.target.value)} placeholder={isGasto ? 'Ej. café, tacos…' : 'Ej. semana 1'} /></label>
+        {isGasto && <label className="field"><span>Lugar</span><input value={place} onChange={(e) => setPlace(e.target.value)} placeholder="Ej. Oxxo, Pemex…" autoCapitalize="words" /></label>}
         <div className="row">
           <label className="field grow"><span>Monto</span><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} /></label>
           <label className="field grow"><span>Fecha</span><input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} /></label>

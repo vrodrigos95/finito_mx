@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Bar, Icon, Money, Seg } from '../components/ui.jsx';
-import { debtTotals, projectDebts, separation, weekIncome, weekSpend } from '../lib/calc.js';
+import { debtTotals, PRIORITIES, projectDebts, separation, weekIncome, weekSpend } from '../lib/calc.js';
 import { dayNum, dowShort, fmtLong, fmtMonthLong, fmtShort, relDays, today, weekStart } from '../lib/date.js';
 import { money, pct } from '../lib/money.js';
 import { useStore } from '../lib/store.jsx';
@@ -68,8 +68,16 @@ export default function Home({ go }) {
           </div>
           <div className="faint small" style={{ marginTop: 4 }}>
             Así cubres los {sep.count} pagos de los próximos 30 días ({money(sep.total)}).
-            {sep.envelopes > 0 && <> Más {money(sep.envelopes)} para tus apartados.</>}
+            {sep.envelopes > 0 && <> Más {money(sep.envelopes)} para tus apartados y ahorros.</>}
           </div>
+          <div className="row" style={{ gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+            {PRIORITIES.filter(([k]) => sep.byPriority[k] > 0).map(([k, l, , c]) => (
+              <span key={k} className="chip" style={{ height: 30, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                <i style={{ width: 7, height: 7, borderRadius: 99, background: c }} />{l} {money(sep.byPriority[k])}
+              </span>
+            ))}
+          </div>
+          <button className="btn ghost" style={{ paddingLeft: 0, height: 36, marginTop: 4 }} onClick={() => go('stats')}>Ver cuánto separar por prioridad <Icon name="next" size={16} /></button>
         </div>
 
         {/* Próximo pago */}

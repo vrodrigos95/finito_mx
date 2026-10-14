@@ -6,6 +6,7 @@ export default function Mas({ go }) {
   const items = [
     ['movimientos', 'card', 'Movimientos', 'Todos tus gastos e ingresos, con buscador', 'var(--coral)'],
     ['ingresos', 'trend', 'Ingresos semanales', 'Cierra tu semana por plataforma', 'var(--lime)'],
+    ['ahorros', 'target', 'Ahorros', 'Metas de ahorro y cuándo llegas a ellas', 'var(--lime)'],
     ['apartados', 'env', 'Apartados', 'Carro, emergencia y tus sobres', 'var(--violet)'],
     ['stats', 'bars', 'Estadísticas', 'En qué ganas, en qué gastas y cuándo quedas libre', 'var(--cyan)'],
     ['ajustes', 'gear', 'Ajustes y respaldo', 'Presupuestos, meta y copia de tus datos', 'var(--text2)'],
@@ -79,7 +80,7 @@ export function Ajustes({ back }) {
           <div className="grow" style={{ fontWeight: 600 }}>Reiniciar datos</div>
         </button>
       </div>
-      <p className="faint xs block" style={{ textAlign: 'center' }}>Finito · v0.4</p>
+      <p className="faint xs block" style={{ textAlign: 'center' }}>Finito · v{__APP_VERSION__}</p>
     </div>
   );
 }

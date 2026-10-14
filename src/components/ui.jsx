@@ -24,6 +24,7 @@ export const Icon = ({ name, size = 22 }) => {
     case 'save': return <svg {...s}><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>;
     case 'x': return <svg {...s}><path d="M6 6l12 12M18 6L6 18" /></svg>;
     case 'edit': return <svg {...s}><path d="M4 20h4L19 9l-4-4L4 16z" /></svg>;
+    case 'target': return <svg {...s}><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="4" /><path d="M12 12l7-7M16 5h3v3" /></svg>;
     case 'minus': return <svg {...s} strokeWidth="2.6"><path d="M5 12h14" /></svg>;
     default: return null;
   }

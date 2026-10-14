@@ -38,7 +38,7 @@ export const DEFAULT_SOURCES = [
   { name: 'Otro', color: '#3A3F4A', hint: 'Lo demás' },
 ];
 
-export const DATA_VERSION = 3;
+export const DATA_VERSION = 4;
 
 // Tipos: list (fechas exactas), monthly (día del mes), semimonthly (15 y fin de mes)
 export const SEED_SCHEDULES = [
@@ -65,18 +65,21 @@ export const SEED_SCHEDULES = [
   // Tanda: $3,000 cada 15 y fin de mes
   { id: 's-tanda', name: 'Tanda', kind: 'tanda', type: 'semimonthly', amount: 3000, start: '2026-09-30', end: '2027-03-31', note: 'Número 2: recibes ~$30,000 el 30 nov' },
   // Gastos fijos
-  { id: 's-contador', name: 'Contador', kind: 'fijo', type: 'monthly', day: 1, amount: 750, start: '2026-10-01' },
-  { id: 's-celular', name: 'Celular', kind: 'fijo', type: 'monthly', day: 10, amount: 450, start: '2026-10-10' },
-  { id: 's-claude', name: 'Claude', kind: 'fijo', type: 'monthly', day: 12, amount: 400, start: '2026-10-12' },
-  { id: 's-drive', name: 'Google Drive', kind: 'fijo', type: 'monthly', day: 12, amount: 35, start: '2026-10-12' },
-  { id: 's-gym', name: 'Gimnasio', kind: 'fijo', type: 'monthly', day: 15, amount: 920, start: '2026-10-15' },
-  { id: 's-internet', name: 'Internet', kind: 'fijo', type: 'monthly', day: 18, amount: 300, start: '2026-10-18' },
+  { id: 's-contador', name: 'Contador', kind: 'fijo', priority: 'alta', type: 'monthly', day: 1, amount: 750, start: '2026-10-01' },
+  { id: 's-celular', name: 'Celular', kind: 'fijo', priority: 'alta', type: 'monthly', day: 10, amount: 450, start: '2026-10-10' },
+  { id: 's-claude', name: 'Claude', kind: 'fijo', priority: 'media', type: 'monthly', day: 12, amount: 400, start: '2026-10-12' },
+  { id: 's-drive', name: 'Google Drive', kind: 'fijo', priority: 'baja', type: 'monthly', day: 12, amount: 35, start: '2026-10-12' },
+  { id: 's-gym', name: 'Gimnasio', kind: 'fijo', priority: 'baja', type: 'monthly', day: 15, amount: 920, start: '2026-10-15' },
+  { id: 's-internet', name: 'Internet', kind: 'fijo', priority: 'alta', type: 'monthly', day: 18, amount: 300, start: '2026-10-18' },
 ];
 
 export const SEED_ENVELOPES = [
   { id: 'carro', name: 'Carro', hint: 'Servicio, llantas y reparaciones', goal: 6000, saved: 0, weekly: 280 },
   { id: 'emergencia', name: 'Emergencia', hint: 'Mini-fondo: meta de diciembre', goal: 5000, saved: 0, weekly: 0 },
 ];
+
+// Prioridad de los fijos: alta = sin esto no trabajas; baja = se puede pausar si no alcanza
+export const FIXED_PRIORITY = { 's-contador': 'alta', 's-celular': 'alta', 's-internet': 'alta', 's-claude': 'media', 's-drive': 'baja', 's-gym': 'baja' };
 
 export const EXPENSE_TAGS = [
   { name: 'Gasolina', amount: 450 },
@@ -125,6 +128,7 @@ export function makeSeed() {
     abonos: [],
     weekMeta: {},
     envelopes: SEED_ENVELOPES.map((e) => ({ ...e })),
+    savings: [],
     expenseTags: EXPENSE_TAGS.map((t) => ({ ...t })),
     incomeTags: INCOME_TAGS.map((t) => ({ ...t })),
   };

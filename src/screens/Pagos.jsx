@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Bar, Confetti, Empty, Header, Icon, Money, Sheet, useConfetti } from '../components/ui.jsx';
+import { PRIORITIES, PRIORITY_COLOR, PRIORITY_LABEL } from '../lib/calc.js';
 import { fmtShort, quincenaKey, quincenaLabel, quincenaTitle, relDays, today } from '../lib/date.js';
 import { money, sum } from '../lib/money.js';
 import { useStore } from '../lib/store.jsx';
@@ -52,7 +53,10 @@ export default function Pagos() {
       </button>
       <button className="grow" style={{ textAlign: 'left', minWidth: 0 }} onClick={() => setEdit(p)}>
         {p.key === nextKey && <span className="badge" style={{ height: 18, fontSize: 11, marginBottom: 2 }}>Próximo</span>}
-        <div style={{ fontWeight: 600 }} className="ellipsis">{p.name}</div>
+        <div style={{ fontWeight: 600 }} className="ellipsis">
+          <i title={`Prioridad ${PRIORITY_LABEL[p.priority].toLowerCase()}`} style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 99, background: PRIORITY_COLOR[p.priority], marginRight: 7, verticalAlign: 'middle' }} />
+          {p.name}
+        </div>
         <div className={`small ${isLate ? 'coral' : p.key === nextKey ? 'lime' : 'faint'}`}>
           {isLate ? `Venció el ${fmtShort(p.date).toLowerCase()}` : `${fmtShort(p.date)} · ${relDays(p.date, t)}`}
           {p.note && !isLate ? ` · ${p.note}` : ''}
@@ -112,11 +116,27 @@ export default function Pagos() {
   );
 }
 
+function PrioritySelect({ value, onChange, hint }) {
+  return (
+    <div className="field">
+      <span>Prioridad{hint ? ` · ${hint}` : ''}</span>
+      <div className="row" style={{ gap: 8 }}>
+        {PRIORITIES.map(([k, l, , c]) => (
+          <button key={k} type="button" className={`chip grow ${value === k ? 'on' : ''}`} style={value === k ? { borderColor: c, color: c } : {}} onClick={() => onChange(k)}>{l}</button>
+        ))}
+      </div>
+      <div className="faint xs" style={{ marginTop: 6 }}>{PRIORITIES.find(([k]) => k === value)?.[2]}</div>
+    </div>
+  );
+}
+
 function EditPayment({ p, onClose, onToggle }) {
   const { dispatch, notify } = useStore();
   const [date, setDate] = useState(p.date);
   const [amount, setAmount] = useState(String(p.amount));
+  const [priority, setPriority] = useState(p.priority);
   const save = () => {
+    if (priority !== p.priority) dispatch({ type: 'updateSchedule', id: p.scheduleId, patch: { priority } });
     const patch = {};
     if (date !== p.date) patch.date = date;
     if (Number(amount) !== p.amount && Number(amount) > 0) patch.amount = Number(amount);
@@ -134,6 +154,7 @@ function EditPayment({ p, onClose, onToggle }) {
       <div className="stack">
         <label className="field"><span>Fecha</span><input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} /></label>
         <label className="field"><span>Monto</span><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} /></label>
+        <PrioritySelect value={priority} onChange={setPriority} hint="aplica a todos los pagos de este concepto" />
       </div>
       <div className="row" style={{ marginTop: 18 }}>
         <button className="btn secondary grow" onClick={onToggle}>{p.paid ? 'Marcar pendiente' : 'Marcar pagado'}</button>
@@ -151,10 +172,11 @@ function AddPayment({ onClose }) {
   const [date, setDate] = useState(today());
   const [repeat, setRepeat] = useState('once');
   const [debtId, setDebtId] = useState('');
+  const [priority, setPriority] = useState('media');
   const save = () => {
     const a = Number(amount);
     if (!name.trim() || !a) return notify('Pon nombre y monto');
-    const base = { name: name.trim(), kind: debtId ? 'deuda' : 'fijo', debtId: debtId || undefined };
+    const base = { name: name.trim(), kind: debtId ? 'deuda' : 'fijo', debtId: debtId || undefined, priority };
     const schedule = repeat === 'once'
       ? { ...base, type: 'list', items: [{ date, amount: a }] }
       : { ...base, type: 'monthly', day: Number(date.slice(8)), amount: a, start: date };
@@ -178,6 +200,7 @@ function AddPayment({ onClose }) {
             {state.debts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         </label>
+        <PrioritySelect value={priority} onChange={setPriority} />
       </div>
       <button className="btn primary block" style={{ marginTop: 18 }} onClick={save}>Agregar</button>
     </Sheet>

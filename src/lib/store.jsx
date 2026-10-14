@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { DATA_VERSION, DEFAULT_SOURCES, DIDI_SCHEDULE, makeSeed } from '../data/seed.js';
+import { DATA_VERSION, DEFAULT_SOURCES, DIDI_SCHEDULE, FIXED_PRIORITY, makeSeed } from '../data/seed.js';
 import { NOTION_EXPENSES } from '../data/notion.js';
-import { expandPayments } from './calc.js';
-import { today } from './date.js';
+import { expandPayments, freqMonthly, planSchedule } from './calc.js';
+import { addDays, today } from './date.js';
 
 const KEY = 'finito:v1';
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -39,6 +39,11 @@ function migrate(s) {
       const [hit] = pool.splice(i, 1);
       return { ...e, note: hit.note };
     });
+  }
+  if (v < 4) {
+    // Ahorros con meta y prioridad en los gastos fijos
+    s.savings ??= [];
+    s.schedules = s.schedules.map((x) => (FIXED_PRIORITY[x.id] && !x.priority ? { ...x, priority: FIXED_PRIORITY[x.id] } : x));
   }
   s.dataVersion = DATA_VERSION;
   return s;
@@ -102,6 +107,8 @@ function reducer(state, a) {
     }
     case 'addSchedule':
       return { ...state, schedules: [...state.schedules, { id: `s-${uid()}`, ...a.schedule }] };
+    case 'updateSchedule':
+      return { ...state, schedules: state.schedules.map((s) => (s.id === a.id ? { ...s, ...a.patch } : s)) };
     case 'removeSchedule':
       return { ...state, schedules: state.schedules.filter((s) => s.id !== a.id) };
     case 'abono':
@@ -113,8 +120,19 @@ function reducer(state, a) {
     case 'updateDebt':
       return { ...state, debts: state.debts.map((d) => (d.id === a.id ? { ...d, ...a.patch } : d)) };
     case 'addDebt': {
-      const id = uid();
+      const id = a.id || uid();
       return { ...state, debts: [...state.debts, { id, rate: null, note: '', status: 'activa', priority: 3, ...a.debt, startBalance: a.debt.balance }] };
+    }
+    case 'setDebtPlan': {
+      // Los pagos futuros que ya tenía la deuda terminan el día antes del nuevo plan; lo pagado o atrasado se queda
+      const debt = state.debts.find((d) => d.id === a.debtId);
+      if (!debt) return state;
+      const plan = a.plan;
+      const cut = addDays(plan ? plan.start : today(), -1);
+      const schedules = state.schedules.map((s) => (s.debtId === a.debtId && (!s.end || s.end > cut) ? { ...s, end: cut } : s));
+      if (plan) schedules.push({ id: `s-${uid()}`, ...planSchedule(debt, plan) });
+      const patch = plan ? { plan, monthly: Math.round(freqMonthly(plan)) } : { plan: null };
+      return { ...state, schedules, debts: state.debts.map((d) => (d.id === a.debtId ? { ...d, ...patch } : d)) };
     }
     case 'removeDebt':
       return {
@@ -130,6 +148,32 @@ function reducer(state, a) {
       return { ...state, envelopes: [...state.envelopes, { id: uid(), saved: 0, weekly: 0, hint: '', ...a.envelope }] };
     case 'removeEnvelope':
       return { ...state, envelopes: state.envelopes.filter((e) => e.id !== a.id) };
+    case 'addSaving':
+      return { ...state, savings: [...(state.savings || []), { id: uid(), saved: 0, weekly: 0, target: '', history: [], createdAt: today(), ...a.saving }] };
+    case 'updateSaving':
+      return { ...state, savings: (state.savings || []).map((x) => (x.id === a.id ? { ...x, ...a.patch } : x)) };
+    case 'removeSaving':
+      return { ...state, savings: (state.savings || []).filter((x) => x.id !== a.id) };
+    case 'savingMove': {
+      // amount > 0 aporta, < 0 retira; queda en el historial para calcular tu ritmo real
+      const mv = { id: a.moveId || uid(), date: today(), amount: a.amount };
+      return {
+        ...state,
+        savings: (state.savings || []).map((x) => (x.id === a.id
+          ? { ...x, saved: Math.max(0, Math.round((x.saved + a.amount) * 100) / 100), history: [...(x.history || []), mv] }
+          : x)),
+      };
+    }
+    case 'savingUndo':
+      return {
+        ...state,
+        savings: (state.savings || []).map((x) => {
+          if (x.id !== a.id) return x;
+          const mv = (x.history || []).find((h) => h.id === a.moveId);
+          if (!mv) return x;
+          return { ...x, saved: Math.max(0, x.saved - mv.amount), history: x.history.filter((h) => h.id !== a.moveId) };
+        }),
+      };
     case 'addSource': {
       const list = state.incomeSources || DEFAULT_SOURCES;
       if (list.some((x) => x.name.toLowerCase() === a.source.name.toLowerCase())) return state;
@@ -172,7 +216,7 @@ export function StoreProvider({ children }) {
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* lleno o bloqueado */ }
   }, [state]);
 
-  const payments = useMemo(() => expandPayments(state), [state.schedules, state.overrides]); // eslint-disable-line
+  const payments = useMemo(() => expandPayments(state), [state.schedules, state.overrides, state.debts]); // eslint-disable-line
 
   const notify = useCallback((msg, undo) => {
     clearTimeout(tRef.current);
